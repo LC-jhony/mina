@@ -1,0 +1,17 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+/* @import './panel/search.css'; */
+/* @import './panel/sidebar.css';
+@import './button.css'; */
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+@source '../../../../vendor/diogogpinto/filament-auth-ui-enhancer/resources/**/*.blade.php';
+
+.fi-body {
+    @apply bg-gray-100 dark:bg-neutral-950;
+}
+
+
+/* Custom styles for Filament Admin Panel main */
+/* .fi-main-ctn {
+    @apply bg-gray-100 dark:bg-neutral-950 flex flex-col overflow-hidden relative
+} */

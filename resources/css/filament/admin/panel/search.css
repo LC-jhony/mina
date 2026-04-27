@@ -1,0 +1,16 @@
+.fi-input-wrp {
+    @apply flex items-center gap-2 bg-white dark:bg-primary-950 border border-primary-200 dark:border-primary-700 rounded-lg cursor-text;
+}
+
+/* Search styles */
+.fi-global-search-results-ctn {
+    border-radius: 1.5rem !important;
+}
+
+.fi-global-search-result-group-header {
+    padding: 1rem 1.5rem !important;
+}
+
+.fi-global-search-result {
+    padding: 0.5rem !important;
+}

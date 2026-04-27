@@ -1,0 +1,1177 @@
+
+<h2 class="sr-only">Prompts de desarrollo para cada módulo del sistema MVMS en Laravel Filament PHP</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+.wrap{padding:12px 0}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tab{padding:5px 14px;border-radius:16px;border:0.5px solid var(--color-border-secondary);font-size:11px;font-weight:500;cursor:pointer;background:var(--color-background-secondary);color:var(--color-text-secondary);transition:all .15s}
+.tab.on{background:var(--color-background-info);color:var(--color-text-info);border-color:var(--color-border-info)}
+.mod-grid{display:flex;flex-direction:column;gap:10px}
+.mod-card{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden}
+.mod-hdr{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;user-select:none;background:var(--color-background-secondary)}
+.mod-hdr:hover{background:var(--color-background-primary)}
+.mod-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.mod-name{font-size:13px;font-weight:500;color:var(--color-text-primary);flex:1}
+.mod-id{font-size:10px;font-family:var(--font-mono);color:var(--color-text-tertiary)}
+.chevron{font-size:11px;color:var(--color-text-tertiary);transition:transform .2s;display:inline-block}
+.chevron.open{transform:rotate(90deg)}
+.mod-body{display:none;padding:12px 14px;border-top:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary)}
+.mod-body.open{display:block}
+.prompt-label{font-size:10px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.prompt-box{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:10px 12px;font-family:var(--font-mono);font-size:11px;color:var(--color-text-secondary);line-height:1.65;white-space:pre-wrap;word-break:break-word;margin-bottom:8px}
+.prompt-box strong{color:var(--color-text-primary);font-weight:500}
+.copy-btn{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:4px 10px;border-radius:5px;cursor:pointer;border:0.5px solid var(--color-border-secondary);background:var(--color-background-secondary);color:var(--color-text-secondary);transition:all .15s;margin-bottom:12px}
+.copy-btn:hover{background:var(--color-background-primary);border-color:var(--color-border-primary)}
+.copy-btn.copied{color:var(--color-text-success);border-color:var(--color-border-success)}
+.send-btn{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:4px 10px;border-radius:5px;cursor:pointer;border:0.5px solid var(--color-border-info);background:var(--color-background-info);color:var(--color-text-info);transition:all .15s;margin-left:6px}
+.send-btn:hover{opacity:.8}
+.section-sep{height:1px;background:var(--color-border-tertiary);margin:10px 0}
+.sub-lbl{font-size:11px;font-weight:500;color:var(--color-text-secondary);margin:8px 0 4px}
+</style>
+
+<div class="wrap">
+<div class="tabs" id="tabs"></div>
+<div class="mod-grid" id="grid"></div>
+</div>
+
+<script>
+const MODS = [
+{
+  id:'MOD-DRIVER', label:'Driver & License Management', color:'#185FA5',
+  tag:'ops',
+  prompts:[
+    {
+      sub:'Prompt maestro del módulo completo',
+      text:`Desarrolla el módulo MOD-DRIVER completo en Laravel 11 con Filament PHP v3 para el sistema MVMS (Mining Vehicle Maintenance System).
+
+CONTEXTO DEL SISTEMA:
+El MVMS gestiona flotas de vehículos para empresas mineras. Este módulo controla los choferes y sus licencias de conducir. Un chofer sin licencia válida NO puede ser asignado a ningún viaje.
+
+TABLAS INVOLUCRADAS:
+- drivers (id, first_name, last_name, dni, phone, birth_date, is_active, timestamps)
+- licenses (id, driver_id FK, category_id FK, license_number UNIQUE, issue_date, expiry_date, status ENUM[active,expired,suspended], timestamps)
+- license_categories (id, code, description, vehicle_type, timestamps)
+
+MODELOS ELOQUENT A CREAR:
+1. app/Models/Driver.php
+   - fillable: first_name, last_name, dni, phone, birth_date, is_active
+   - casts: birth_date => date, is_active => boolean
+   - relationships: hasMany(License), hasMany(TripDriver)
+   - scope: scopeActive($q) => where is_active=true
+   - método: activeLicenseFor(string $vehicleType): ?License
+     → busca licencia activa cuya categoría tenga vehicle_type coincidente y expiry_date >= today
+
+2. app/Models/License.php
+   - fillable: driver_id, category_id, license_number, issue_date, expiry_date, status
+   - casts: issue_date => date, expiry_date => date
+   - relationships: belongsTo(Driver), belongsTo(LicenseCategory)
+   - scope: scopeActive($q), scopeExpiring($q, $days=30)
+   - accessor: getDaysRemainingAttribute() => expiry_date->diffInDays(now(), false)
+
+3. app/Models/LicenseCategory.php
+   - fillable: code, description, vehicle_type
+
+FILAMENT RESOURCES A CREAR:
+
+A) DriverResource (app/Filament/Resources/DriverResource.php)
+   TABLA (table()):
+   - Columna: Nombre completo (first_name + last_name concatenados)
+   - Columna: DNI (searchable, copyable)
+   - Columna: Teléfono
+   - Columna: Fecha nacimiento (date format d/m/Y)
+   - Columna: Estado (badge: active=success, inactive=danger)
+   - Columna: Licencias activas (count, badge numérico)
+   - Columna: Próximo vencimiento (min expiry_date de licencias activas, color rojo si < 30 días)
+   - Filtros: SelectFilter(is_active), TextInputFilter(dni)
+   - Acciones tabla: EditAction, DeleteAction (solo si no tiene viajes)
+   - Acción bulk: BulkAction "Desactivar seleccionados"
+
+   FORMULARIO (form()):
+   - Section "Datos personales":
+     - Grid 2 cols: TextInput(first_name required), TextInput(last_name required)
+     - TextInput(dni, unique validation, maxLength:20)
+     - Grid 2 cols: TextInput(phone nullable), DatePicker(birth_date, before:-18 years)
+   - Section "Estado":
+     - Toggle(is_active, default:true)
+
+   INFOLIST (infolist()):
+   - Section "Información del chofer" con todos los campos + badge de estado
+   - RelationManager de licencias visible
+
+B) LicensesRelationManager (dentro de DriverResource)
+   archivo: app/Filament/Resources/DriverResource/RelationManagers/LicensesRelationManager.php
+   TABLA:
+   - Columna: Número de licencia
+   - Columna: Categoría (category.code + category.description)
+   - Columna: Fecha emisión
+   - Columna: Fecha vencimiento (highlighted si < 30 días)
+   - Columna: Días restantes (computed, colored: verde>30, amarillo 6-30, rojo<=5)
+   - Columna: Estado (badge)
+   FORMULARIO:
+   - Select(category_id, options from LicenseCategory, required)
+   - TextInput(license_number, unique)
+   - Grid 2: DatePicker(issue_date), DatePicker(expiry_date, after:issue_date)
+   - Select(status, options:[active,expired,suspended])
+   LÓGICA: Al crear/activar una licencia, verificar que no exista otra activa para el mismo driver_id + category_id. Si existe, mostrar confirmación para marcarla como expired.
+
+C) LicenseCategoryResource (app/Filament/Resources/LicenseCategoryResource.php)
+   - Tabla simple: code, description, vehicle_type, count de licencias
+   - Formulario: TextInput(code), TextInput(description), Select(vehicle_type, options:[bus,truck,van,car,pickup])
+
+D) ExpiringLicensesPage (app/Filament/Pages/ExpiringLicensesPage.php)
+   - Extiende Page, no Resource
+   - Propiedad: $days = 30 (configurable con Select en el header)
+   - Tabla usando Filament Tables con query: License::with(['driver','category'])->where('status','active')->whereBetween('expiry_date',[now(),now()->addDays($days)])->orderBy('expiry_date')
+   - Columnas: Chofer, DNI, Categoría, Nro. Licencia, Fecha vencimiento, Días restantes (badge coloreado)
+   - Sin acciones de escritura (read-only)
+   - Registrar en Panel Provider con ->pages([ExpiringLicensesPage::class])
+
+JOBS Y SCHEDULERS:
+E) app/Jobs/CheckLicenseExpiry.php (implements ShouldQueue)
+   handle():
+   1. Query: licenses WHERE status=active AND expiry_date < now() → UPDATE status=expired en batch
+   2. Query: licenses WHERE status=active AND expiry_date BETWEEN now() AND now()+30days
+   3. Por cada licencia encontrada: dispatch(SendLicenseExpiryAlert::class, $license)
+
+F) app/Jobs/SendLicenseExpiryAlert.php
+   - Envía notificación in-app (DatabaseNotification) al usuario coordinador/admin
+   - Envía email con Mailable LicenseExpiryMailable
+
+G) En app/Console/Kernel.php (o bootstrap/app.php en Laravel 11):
+   $schedule->job(new CheckLicenseExpiry)->dailyAt('07:00');
+
+VALIDACIONES (Form Request):
+H) app/Http/Requests/StoreDriverRequest.php y UpdateDriverRequest.php
+   - first_name: required|string|max:80
+   - last_name: required|string|max:80
+   - dni: required|unique:drivers,dni|max:20
+   - birth_date: required|date|before:-18 years
+   - phone: nullable|string|max:20
+
+I) app/Http/Requests/StoreLicenseRequest.php
+   - driver_id: required|exists:drivers,id
+   - category_id: required|exists:license_categories,id
+   - license_number: required|unique:licenses,license_number
+   - issue_date: required|date|before:expiry_date
+   - expiry_date: required|date|after:issue_date
+   - Regla custom: solo 1 licencia activa por driver+category
+
+EXCEPCIONES PERSONALIZADAS:
+- app/Exceptions/DuplicateLicenseException.php (HTTP 422)
+
+Genera todo el código completo con PHPDoc, sin omitir ningún método. Usa PHP 8.3, Laravel 11 y Filament v3.`
+    }
+  ]
+},
+{
+  id:'MOD-VEHICLE', label:'Vehicle Fleet Management', color:'#0F6E56',
+  tag:'ops',
+  prompts:[
+    {
+      sub:'Prompt maestro del módulo completo',
+      text:`Desarrolla el módulo MOD-VEHICLE completo en Laravel 11 con Filament PHP v3 para el sistema MVMS.
+
+TABLAS INVOLUCRADAS:
+- vehicles (id, brand_model_id FK, plate UNIQUE, year SMALLINT, mileage INT UNSIGNED DEFAULT 0, status ENUM[available,on_trip,in_maintenance,out_of_service] DEFAULT available, timestamps)
+- vehicle_brands_models (id, brand VARCHAR(80), model VARCHAR(80), vehicle_type VARCHAR(60), passenger_capacity TINYINT, timestamps) — UNIQUE(brand, model)
+
+MODELOS ELOQUENT:
+1. app/Models/Vehicle.php
+   - fillable: brand_model_id, plate, year, mileage, status
+   - casts: mileage => integer
+   - relationships: belongsTo(VehicleBrandModel), hasMany(Trip), hasMany(MaintenanceOrder)
+   - scopes: scopeAvailable($q), scopeActive($q) (excluye out_of_service)
+   - helpers: isAvailable():bool, isOnTrip():bool, isInMaintenance():bool
+   - IMPORTANTE: El campo mileage NUNCA puede decrementarse. Validar en mutator o Service.
+
+2. app/Models/VehicleBrandModel.php
+   - fillable: brand, model, vehicle_type, passenger_capacity
+   - relationship: hasMany(Vehicle)
+
+SERVICES:
+3. app/Services/VehicleService.php
+   updateMileage(Vehicle $v, int $newKm): void
+   - Valida: $newKm >= $v->mileage → lanza InvalidMileageException si no
+   - Actualiza: $v->update(['mileage' => $newKm])
+
+   transitionStatus(Vehicle $v, string $newStatus): void
+   - Valida transiciones permitidas:
+     available → on_trip, in_maintenance, out_of_service
+     on_trip → available, in_maintenance
+     in_maintenance → available
+     out_of_service → ninguna
+   - Lanza VehicleStatusTransitionException si no permitida
+   - Actualiza status
+
+   decommission(Vehicle $v): void
+   - Solo admin
+   - Verifica que no tenga Trip active o MaintenanceOrder open
+   - Actualiza status = out_of_service
+
+FILAMENT RESOURCES:
+A) VehicleResource (app/Filament/Resources/VehicleResource.php)
+   TABLA:
+   - Columna: Placa (searchable, badge)
+   - Columna: Marca + Modelo (relationship: brandModel.brand + brandModel.model)
+   - Columna: Tipo vehículo (brandModel.vehicle_type, badge)
+   - Columna: Año
+   - Columna: Kilometraje (formatted: number_format con separador de miles)
+   - Columna: Estado (badge colors: available=success, on_trip=warning, in_maintenance=danger, out_of_service=gray)
+   - Columna: Último mantenimiento (max end_date de maintenanceOrders completed)
+   - Filtros: SelectFilter(status), SelectFilter(vehicle_type via brandModel)
+   - Acción tabla: "Dar de baja" (solo admin, solo si status=available, confirmar con modal)
+
+   FORMULARIO create/edit:
+   - Select(brand_model_id, searchable, required, options from VehicleBrandModel con "Crear nuevo" inline)
+   - TextInput(plate, unique, uppercase, maxLength:20)
+   - Grid 2: TextInput(year, numeric, min:1980, max:current_year+1), TextInput(mileage, numeric, min:0)
+   - NOTA: status NO editable en formulario. Solo cambia por lógica de negocio.
+
+   INFOLIST con tabs:
+   - Tab "Datos": placa, marca/modelo, año, km, estado
+   - Tab "Viajes" → TripHistoryRelationManager
+   - Tab "Mantenimiento" → MaintenanceOrdersRelationManager
+
+B) TripHistoryRelationManager
+   - Relación: vehicle->trips()
+   - Tabla READ-ONLY: fecha_salida, mina, estado, fecha_retorno, km recorridos (return_mileage - departure_mileage si se registra)
+   - Sin acciones de escritura desde aquí
+
+C) MaintenanceOrdersRelationManager
+   - Relación: vehicle->maintenanceOrders()
+   - Tabla: fecha_inicio, tipo, mecánico, estado, costo_total
+   - Acción: "Nueva orden" → abre form de MaintenanceOrder con vehicle_id preseleccionado
+   - Acción: Ver detalle
+
+D) VehicleBrandModelResource
+   - CRUD simple para el catálogo
+   - Tabla: brand, model, vehicle_type, passenger_capacity, count de vehículos asociados
+   - Form: TextInput(brand), TextInput(model), Select(vehicle_type), TextInput(passenger_capacity, min:1)
+
+E) FleetStatusWidget (app/Filament/Widgets/FleetStatusWidget.php)
+   - Extiende StatsOverviewWidget
+   - 4 stats: Disponibles (available), En ruta (on_trip), En taller (in_maintenance), Fuera de servicio (out_of_service)
+   - Cada stat con color semántico y descripción
+   - Se refresca cada 30 segundos (pollingInterval)
+
+EXCEPCIONES:
+- app/Exceptions/InvalidMileageException.php (HTTP 422, mensaje: "El kilometraje final no puede ser menor al actual ({current} km)")
+- app/Exceptions/VehicleStatusTransitionException.php (HTTP 422)
+- app/Exceptions/VehicleNotAvailableException.php (HTTP 422)
+
+Genera código completo PHP 8.3, Laravel 11, Filament v3. Incluye PHPDoc en todos los métodos.`
+    }
+  ]
+},
+{
+  id:'MOD-TRIP', label:'Trip Management', color:'#534AB7',
+  tag:'ops',
+  prompts:[
+    {
+      sub:'Prompt maestro del módulo completo',
+      text:`Desarrolla el módulo MOD-TRIP completo en Laravel 11 con Filament PHP v3 para el sistema MVMS.
+
+TABLAS INVOLUCRADAS:
+- trips (id, vehicle_id FK, mine_id FK, departure_date DATETIME, return_date DATETIME NULL, origin VARCHAR(150), observations TEXT NULL, status ENUM[scheduled,in_progress,completed,cancelled] DEFAULT scheduled, timestamps)
+- trip_drivers (id, trip_id FK CASCADE, driver_id FK RESTRICT, leg ENUM[outbound,return], position TINYINT UNSIGNED, timestamps) — UNIQUE(trip_id, leg, position)
+- mines (id, name VARCHAR(150), region VARCHAR(100), company VARCHAR(150), address NULL, latitude DECIMAL(10,7) NULL, longitude DECIMAL(10,7) NULL, is_active BOOLEAN DEFAULT true, timestamps)
+
+MODELOS ELOQUENT:
+1. app/Models/Trip.php
+   - fillable: vehicle_id, mine_id, departure_date, return_date, origin, observations, status
+   - casts: departure_date => datetime, return_date => datetime
+   - relationships: belongsTo(Vehicle), belongsTo(Mine), hasMany(TripDriver), hasMany(MaintenanceOrder)
+   - methods:
+     outboundDrivers(): HasMany → tripDrivers WHERE leg=outbound ORDER BY position
+     returnDrivers(): HasMany → tripDrivers WHERE leg=return ORDER BY position
+     isEditable(): bool → status === scheduled
+     canStart(): bool → status === scheduled && vehicle->isAvailable()
+
+2. app/Models/TripDriver.php
+   - fillable: trip_id, driver_id, leg, position
+   - relationships: belongsTo(Trip), belongsTo(Driver)
+
+3. app/Models/Mine.php
+   - fillable: name, region, company, address, latitude, longitude, is_active
+   - scope: scopeActive($q)
+
+SERVICES:
+4. app/Services/TripService.php
+
+   createTrip(array $data): Trip
+   Recibe: vehicle_id, mine_id, departure_date, origin, observations,
+           outbound_driver_1_id, outbound_driver_2_id, return_driver_1_id, return_driver_2_id
+   Lógica:
+   1. Verificar vehicle->status === available → VehicleNotAvailableException
+   2. Verificar 4 driver_ids son distintos → DuplicateDriverAssignmentException
+   3. Obtener vehicle_type del vehículo (via brandModel)
+   4. Por cada driver_id: Driver::find($id)->activeLicenseFor($vehicleType) → InvalidLicenseException si null
+   5. DB::transaction():
+      - Trip::create([...status=scheduled])
+      - TripDriver::create([trip_id, outbound_driver_1_id, leg=outbound, position=1])
+      - TripDriver::create([trip_id, outbound_driver_2_id, leg=outbound, position=2])
+      - TripDriver::create([trip_id, return_driver_1_id, leg=return, position=1])
+      - TripDriver::create([trip_id, return_driver_2_id, leg=return, position=2])
+   6. Return $trip->fresh()
+
+   startTrip(Trip $trip): Trip
+   1. Verificar status === scheduled
+   2. DB::transaction(): trip->update(status=in_progress), trip->vehicle->update(status=on_trip)
+   3. Return $trip->fresh()
+
+   completeTrip(Trip $trip, int $finalMileage, ?string $observations): Trip
+   1. Verificar status === in_progress
+   2. Verificar finalMileage >= trip->vehicle->mileage → InvalidMileageException
+   3. DB::transaction():
+      - trip->update(status=completed, return_date=now(), observations)
+      - trip->vehicle->update(mileage=finalMileage, status=available)
+   4. Dispatch CheckPreventiveMaintenance::dispatch($trip->vehicle)
+   5. Return $trip->fresh()
+
+   cancelTrip(Trip $trip): Trip
+   1. Verificar status === scheduled → ConflictException si no
+   2. trip->update(status=cancelled)
+   3. Return $trip->fresh()
+
+FILAMENT RESOURCES:
+A) TripResource (app/Filament/Resources/TripResource.php)
+   TABLA:
+   - Columna: ID (badge pequeño)
+   - Columna: Vehículo (relationship: vehicle.plate, badge con color de status)
+   - Columna: Mina (relationship: mine.name)
+   - Columna: Fecha salida (datetime format d/m/Y H:i)
+   - Columna: Fecha retorno (nullable)
+   - Columna: Choferes ida (count 2, nombres pills)
+   - Columna: Estado (badge colors: scheduled=info, in_progress=warning, completed=success, cancelled=gray)
+   - Filtros: SelectFilter(status), SelectFilter(mine_id), DateRangeFilter(departure_date)
+
+   FORMULARIO create (Wizard de 3 pasos):
+   Paso 1 "Vehículo y destino":
+   - Select(vehicle_id, solo available, searchable, muestra placa + marca/modelo + estado)
+   - Select(mine_id, solo activas, searchable)
+   - Grid 2: DateTimePicker(departure_date, after:now), TextInput(origin)
+   - Textarea(observations, nullable)
+
+   Paso 2 "Choferes de ida":
+   - Nota informativa: "El vehículo [placa] es de tipo [vehicle_type]. Solo se muestran choferes con licencia válida para este tipo."
+   - Select(outbound_driver_1_id, label:"Chofer principal ida", filtrado por vehicle_type activo)
+   - Select(outbound_driver_2_id, label:"Chofer secundario ida", filtrado, diferente al anterior)
+   - Ambos muestran: nombre, DNI, categoría de licencia, días hasta vencimiento
+
+   Paso 3 "Choferes de vuelta":
+   - Select(return_driver_1_id, label:"Chofer principal vuelta")
+   - Select(return_driver_2_id, label:"Chofer secundario vuelta")
+   - Validación: los 4 drivers deben ser distintos
+   - Resumen del viaje antes de confirmar
+
+   ACCIONES personalizadas en tabla:
+   - Action "Iniciar viaje" (solo si status=scheduled): llama TripService::startTrip(), confirmar con modal
+   - Action "Completar viaje" (solo si status=in_progress): modal con campo TextInput(final_mileage, required, numeric) + Textarea(observations)
+   - Action "Cancelar" (solo si status=scheduled): confirmar con modal
+
+B) TripDriversRelationManager
+   - Tabla con: leg (badge outbound/return), position, driver nombre+DNI, licencia categoría, días vencimiento
+   - Edición permitida solo si trip.status === scheduled
+   - Form: Select(leg), Select(position), Select(driver_id filtered)
+
+C) TripMaintenanceRelationManager
+   - Lista mantenimientos del viaje
+   - Permite crear nueva OM con trip_id preseleccionado
+
+D) MineResource — CRUD simple para catálogo de minas
+   - Form: name, region, company, address, Grid 2: latitude+longitude, Toggle(is_active)
+
+E) ActiveTripsWidget (app/Filament/Widgets/ActiveTripsWidget.php)
+   - Extiende TableWidget
+   - Query: Trip::where('status','in_progress')->with(['vehicle','mine'])->latest()
+   - Columnas: vehículo, mina, fecha salida, tiempo transcurrido (computed)
+   - Link a detalle del viaje
+
+EXCEPCIONES:
+- DuplicateDriverAssignmentException, InvalidLicenseException, VehicleNotAvailableException
+
+Genera código completo PHP 8.3, Laravel 11, Filament v3.`
+    }
+  ]
+},
+{
+  id:'MOD-MAINT', label:'Maintenance Order Management', color:'#BA7517',
+  tag:'maint',
+  prompts:[
+    {
+      sub:'Prompt maestro del módulo completo',
+      text:`Desarrolla el módulo MOD-MAINT completo en Laravel 11 con Filament PHP v3 para el sistema MVMS.
+
+TABLAS INVOLUCRADAS:
+- maintenance_orders (id, vehicle_id FK, trip_id FK NULL SET NULL, mechanic_id FK, maintenance_type_id FK, start_date DATETIME, end_date DATETIME NULL, mileage_at_service INT UNSIGNED, description TEXT NULL, status ENUM[pending,in_progress,completed,cancelled] DEFAULT pending, total_cost DECIMAL(10,2) DEFAULT 0.00, timestamps)
+- maintenance_order_parts (id, maintenance_order_id FK CASCADE, spare_part_id FK RESTRICT, quantity INT UNSIGNED DEFAULT 1, unit_price DECIMAL(10,2), subtotal DECIMAL(10,2), timestamps)
+- maintenance_types (id, name VARCHAR(100) UNIQUE, description TEXT NULL, interval_km INT UNSIGNED NULL, interval_days SMALLINT UNSIGNED NULL, timestamps)
+
+MODELOS ELOQUENT:
+1. app/Models/MaintenanceOrder.php
+   - fillable: vehicle_id, trip_id, mechanic_id, maintenance_type_id, start_date, end_date, mileage_at_service, description, status, total_cost
+   - casts: start_date => datetime, end_date => datetime, total_cost => decimal:2
+   - relationships: belongsTo(Vehicle), belongsTo(Trip), belongsTo(Mechanic), belongsTo(MaintenanceType), hasMany(MaintenanceOrderPart)
+   - helpers: isOpen():bool → status IN [pending, in_progress]
+   - accessor: getPartsCountAttribute(): int
+
+2. app/Models/MaintenanceOrderPart.php
+   - fillable: maintenance_order_id, spare_part_id, quantity, unit_price, subtotal
+   - casts: unit_price => decimal:2, subtotal => decimal:2
+   - relationships: belongsTo(MaintenanceOrder), belongsTo(SparePart)
+
+3. app/Models/MaintenanceType.php
+   - fillable: name, description, interval_km, interval_days
+
+SERVICES:
+4. app/Services/MaintenanceService.php
+
+   openOrder(array $data): MaintenanceOrder
+   $data: vehicle_id, trip_id(nullable), mechanic_id, maintenance_type_id, start_date, mileage_at_service, description
+   1. Verificar vehicle->status IN [available, on_trip] → VehicleNotAvailableException
+   2. ensureMechanicAvailable($data['mechanic_id']) → MechanicUnavailableException
+   3. DB::transaction():
+      - MaintenanceOrder::create([..., status=pending])
+      - Vehicle::find($data['vehicle_id'])->update(['status'=>'in_maintenance'])
+   4. Return $order->fresh()
+
+   private ensureMechanicAvailable(int $mechanicId): void
+   - Verifica: MaintenanceOrder::where('mechanic_id',$mechanicId)->whereIn('status',['pending','in_progress'])->exists()
+   - Si true → throw new MechanicUnavailableException($mechanicId)
+
+   addPart(MaintenanceOrder $order, int $sparePartId, int $qty): MaintenanceOrderPart
+   1. Verificar $order->isOpen() → OrderAlreadyClosedException si false
+   2. DB::transaction() con lockForUpdate():
+      - $part = SparePart::lockForUpdate()->findOrFail($sparePartId)
+      - Verificar $part->stock >= $qty → InsufficientStockException($part->name, $part->stock) si no
+      - $unitPrice = $part->unit_price (SNAPSHOT)
+      - $line = $order->parts()->create([spare_part_id, quantity=$qty, unit_price=$unitPrice, subtotal=$unitPrice*$qty])
+      - $part->decrement('stock', $qty)
+      - Dispatch RecalculateOrderCost::dispatch($order)
+   3. Return $line->fresh()
+
+   removePart(MaintenanceOrderPart $line): void
+   1. Verificar $line->order->isOpen() → OrderAlreadyClosedException
+   2. DB::transaction():
+      - $line->sparePart->increment('stock', $line->quantity)
+      - $line->delete()
+      - Dispatch RecalculateOrderCost::dispatch($line->order)
+
+   closeOrder(MaintenanceOrder $order, ?string $notes = null): MaintenanceOrder
+   1. Verificar $order->isOpen() → OrderAlreadyClosedException si false
+   2. DB::transaction():
+      - $total = $order->parts()->sum('subtotal')
+      - $order->update([status=completed, end_date=now(), total_cost=$total, description=$notes ?? $order->description])
+      - $order->vehicle->update(['status'=>'available'])
+   3. Dispatch CheckPreventiveMaintenance::dispatch($order->vehicle, $order->maintenanceType)
+   4. Return $order->fresh()
+
+JOBS:
+5. app/Jobs/RecalculateOrderCost.php (ShouldQueue)
+   handle(): $this->order->update(['total_cost' => $this->order->parts()->sum('subtotal')])
+
+FILAMENT RESOURCES:
+A) MaintenanceOrderResource
+   TABLA:
+   - ID con badge
+   - Vehículo (plate, badge status)
+   - Tipo mantenimiento (maintenanceType.name)
+   - Mecánico (mechanic nombre completo)
+   - Fecha inicio (d/m/Y H:i)
+   - Km al servicio (formatted)
+   - Estado (badge: pending=gray, in_progress=warning, completed=success, cancelled=danger)
+   - Total S/. (money format, bold si > 0)
+   - Filtros: SelectFilter(status), SelectFilter(vehicle_id), SelectFilter(mechanic_id), DateRangeFilter
+
+   FORMULARIO create:
+   - Section "Vehículo":
+     Select(vehicle_id, filtrado a available+on_trip, muestra plate+status badge)
+     Select(trip_id, nullable, filtra trips in_progress del vehículo seleccionado, hint:"opcional")
+   - Section "Asignación":
+     Select(mechanic_id, filtra activos SIN orden activa, muestra nombre+especialidad)
+     Select(maintenance_type_id, muestra nombre+intervalos)
+   - Section "Detalles":
+     Grid 2: DateTimePicker(start_date, default:now()), TextInput(mileage_at_service, numeric, gte:vehicle.mileage)
+     Textarea(description, nullable)
+   - NOTA: Al guardar, llama MaintenanceService::openOrder()
+
+   ACCIONES en tabla:
+   - Action "Cerrar orden" (solo pending/in_progress): modal con Textarea(notes, optional) + resumen de costo → llama closeOrder()
+   - Action "Cancelar" (solo pending): confirmar modal
+   - Action "Ver partes" → link a detalle con OrderPartsRelationManager
+
+   INFOLIST con tabs:
+   - Tab "Orden": todos los datos + total_cost destacado
+   - Tab "Repuestos" → OrderPartsRelationManager
+
+B) OrderPartsRelationManager
+   TABLA:
+   - Código repuesto (sparePart.code)
+   - Nombre repuesto (sparePart.name)
+   - Cantidad (numeric badge)
+   - Precio unitario (SNAPSHOT, money format, muted)
+   - Subtotal (money format, bold)
+   - Acción: DeleteAction (solo si order.status IN [pending, in_progress], restaura stock)
+
+   FORMULARIO add:
+   - Select(spare_part_id, searchable por code+name, muestra stock disponible)
+   - TextInput(quantity, numeric, min:1, hint dinámico: "Stock disponible: {stock}")
+   - Campo calculado: precio_estimado = quantity * spare_part.unit_price (live preview)
+   - Al guardar: llama MaintenanceService::addPart()
+
+C) MaintenanceTypeResource — CRUD simple
+   - Tabla: name, description, interval_km, interval_days, count de órdenes
+   - Form: TextInput(name), Textarea(description), Grid 2: TextInput(interval_km nullable), TextInput(interval_days nullable)
+
+D) OpenOrdersWidget (StatsOverviewWidget)
+   - Stats: Pendientes (pending), En progreso (in_progress), Vehículos en taller (in_maintenance count)
+   - Polling 60s
+
+EXCEPCIONES:
+- MechanicUnavailableException, InsufficientStockException, OrderAlreadyClosedException
+
+Genera código completo PHP 8.3, Laravel 11, Filament v3.`
+    }
+  ]
+},
+{
+  id:'MOD-PARTS', label:'Spare Parts Inventory', color:'#993C1D',
+  tag:'maint',
+  prompts:[
+    {
+      sub:'Prompt maestro del módulo completo',
+      text:`Desarrolla el módulo MOD-PARTS completo en Laravel 11 con Filament PHP v3 para el sistema MVMS.
+
+TABLA PRINCIPAL:
+- spare_parts (id, code VARCHAR(40) UNIQUE, name VARCHAR(150), description TEXT NULL, unit VARCHAR(20) DEFAULT 'piece', unit_price DECIMAL(10,2) DEFAULT 0.00, stock INT UNSIGNED DEFAULT 0, timestamps)
+
+MODELO:
+1. app/Models/SparePart.php
+   - fillable: code, name, description, unit, unit_price, stock
+   - casts: unit_price => decimal:2, stock => integer
+   - relationship: hasMany(MaintenanceOrderPart)
+   - scope: scopeLowStock($q, $threshold=5) → where('stock','<=',$threshold)
+   - accessor: getIsLowStockAttribute(): bool → $this->stock <= config('mvms.low_stock_threshold', 5)
+
+FILAMENT RESOURCE:
+A) SparePartResource (app/Filament/Resources/SparePartResource.php)
+   TABLA:
+   - Código (monospace, searchable, copyable)
+   - Nombre (searchable)
+   - Unidad (badge)
+   - Precio unitario (money: S/. X.XX)
+   - Stock (numeric, badge: verde si >5, amarillo si 3-5, rojo si <=2)
+   - Indicador "Stock bajo" (IconColumn si stock <= threshold)
+   - Total consumido (sum de maintenance_order_parts.quantity para este part, computed)
+   - Filtros: Toggle "Solo stock bajo" (whereHas o scopeLowStock)
+   - Acción tabla: "Ajustar stock" → Action modal con:
+     - Select(tipo, options:[entrada,corrección]), TextInput(cantidad, numeric), Textarea(motivo)
+     - Al confirmar: increment/set stock según tipo, crear registro en stock_movements (tabla opcional)
+
+   FORMULARIO:
+   - Section "Identificación": TextInput(code UNIQUE uppercase), TextInput(name)
+   - Textarea(description, nullable)
+   - Section "Inventario":
+     Grid 3: Select(unit, options:[piece,liter,kg,meter,set]), TextInput(unit_price, numeric, min:0, prefix:S/.), TextInput(stock, numeric, min:0)
+   - Nota al editar precio: "Cambiar el precio no afecta órdenes ya registradas (precio snapshot)"
+
+   INFOLIST:
+   - Datos del repuesto + badge de stock
+   - PartConsumptionRelationManager (historial de uso)
+
+B) PartConsumptionRelationManager (READ-ONLY)
+   - Relación: sparePart->maintenanceOrderParts()->with('maintenanceOrder.vehicle')
+   - Tabla: ID orden, Vehículo, Fecha orden, Cantidad usada, Precio usado (snapshot), Subtotal
+   - Sin acciones
+   - Ordenado por fecha desc
+
+C) LowStockWidget (app/Filament/Widgets/LowStockWidget.php)
+   - Extiende TableWidget
+   - Query: SparePart::lowStock()->orderBy('stock')
+   - Columnas: code, name, stock (badge rojo), unit, unit_price
+   - Header con conteo "X repuestos con stock bajo"
+   - Botón en cada fila: "Ajustar" → link a SparePartResource edit
+
+JOB DE ALERTA:
+D) app/Jobs/CheckLowStockAlerts.php (ShouldQueue)
+   handle():
+   - SparePart::lowStock()->each(fn($part) => Notification::route('mail', config('mvms.admin_email'))->notify(new LowStockNotification($part)))
+   - Registrar en scheduler: $schedule->job(new CheckLowStockAlerts)->dailyAt('06:00')
+
+CONFIGURACIÓN:
+- config/mvms.php: ['low_stock_threshold' => env('LOW_STOCK_THRESHOLD', 5), 'admin_email' => env('ADMIN_EMAIL')]
+
+Genera código completo PHP 8.3, Laravel 11, Filament v3.`
+    }
+  ]
+},
+{
+  id:'MOD-MECH', label:'Mechanic Management', color:'#0F6E56',
+  tag:'maint',
+  prompts:[
+    {
+      sub:'Prompt maestro del módulo completo',
+      text:`Desarrolla el módulo MOD-MECH completo en Laravel 11 con Filament PHP v3 para el sistema MVMS.
+
+TABLAS:
+- mechanics (id, specialty_id FK, first_name VARCHAR(80), last_name VARCHAR(80), phone VARCHAR(20) NULL, is_active BOOLEAN DEFAULT true, timestamps)
+- specialties (id, name VARCHAR(100) UNIQUE, description TEXT NULL, timestamps)
+
+MODELOS:
+1. app/Models/Mechanic.php
+   - fillable: specialty_id, first_name, last_name, phone, is_active
+   - casts: is_active => boolean
+   - relationships: belongsTo(Specialty), hasMany(MaintenanceOrder)
+   - scope: scopeActive($q), scopeAvailable($q) → whereDoesntHave('maintenanceOrders', fn($q)=>$q->whereIn('status',['pending','in_progress']))
+   - accessor: getFullNameAttribute(): string → "$this->first_name $this->last_name"
+   - accessor: getHasActiveOrderAttribute(): bool → maintenanceOrders()->whereIn('status',['pending','in_progress'])->exists()
+
+2. app/Models/Specialty.php
+   - fillable: name, description
+   - relationship: hasMany(Mechanic)
+
+FILAMENT RESOURCES:
+A) MechanicResource (app/Filament/Resources/MechanicResource.php)
+   TABLA:
+   - Nombre completo (first_name + last_name)
+   - Especialidad (specialty.name, badge)
+   - Teléfono
+   - Estado (badge: active=success, inactive=gray)
+   - Disponible (IconColumn: check verde si sin orden activa, x rojo si ocupado)
+   - Órdenes completadas (count de maintenanceOrders WHERE status=completed)
+   - Filtros: SelectFilter(specialty_id), Toggle(solo disponibles), Toggle(solo activos)
+   - Acción: "Desactivar" (solo admin, si no tiene órdenes abiertas)
+
+   FORMULARIO:
+   - Grid 2: TextInput(first_name required), TextInput(last_name required)
+   - Select(specialty_id, required, con opción "Crear especialidad" inline)
+   - Grid 2: TextInput(phone nullable), Toggle(is_active, default true)
+
+   INFOLIST:
+   - Datos del mecánico + especialidad card
+   - Badge "Disponible / Ocupado" prominente
+   - MechanicOrdersRelationManager
+
+B) MechanicOrdersRelationManager (READ-ONLY)
+   - Relación: mechanic->maintenanceOrders()->with(['vehicle','maintenanceType'])
+   - Tabla: ID orden, Vehículo, Tipo, Estado (badge), Fecha inicio, Fecha fin, Total S/.
+   - Sin acciones de escritura
+   - Badge de orden activa en header si hay alguna open
+
+C) SpecialtyResource — CRUD simple
+   - Tabla: name, description, count mecánicos
+   - Form: TextInput(name UNIQUE), Textarea(description)
+
+VALIDACIÓN DISPONIBILIDAD:
+El método ensureMechanicAvailable() ya está en MaintenanceService (ver MOD-MAINT).
+En el formulario de MaintenanceOrderResource, el Select de mechanic_id debe:
+1. Mostrar solo mecánicos activos
+2. Mostrar badge "Ocupado" para los que tienen orden activa (no filtrarlos, solo indicar)
+3. En el backend, MaintenanceService::openOrder() ejecuta la verificación final
+
+Genera código completo PHP 8.3, Laravel 11, Filament v3.`
+    }
+  ]
+},
+{
+  id:'MOD-PREV', label:'Preventive Maintenance Scheduler', color:'#1D9E75',
+  tag:'reports',
+  prompts:[
+    {
+      sub:'Prompt maestro del módulo completo',
+      text:`Desarrolla el módulo MOD-PREV completo en Laravel 11 con Filament PHP v3 para el sistema MVMS.
+
+ESTE MÓDULO NO TIENE INTERFAZ DE ESCRITURA. Es un módulo de inteligencia que corre en background.
+
+ALGORITMO CENTRAL:
+Para cada vehículo activo y cada tipo de mantenimiento con intervalos definidos:
+1. Busca la última orden COMPLETADA de ese tipo para ese vehículo
+2. Verifica umbral por KM: if (vehicle.mileage >= last_mileage_at_service + type.interval_km) → ALERTA
+3. Verifica umbral por DÍAS: if (now().diffInDays(last_end_date) >= type.interval_days) → ALERTA
+
+JOB PRINCIPAL:
+app/Jobs/CheckPreventiveMaintenance.php (ShouldQueue)
+
+Constructor: (public Vehicle $vehicle, public ?MaintenanceType $specificType = null)
+
+handle():
+   $types = $this->specificType
+       ? collect([$this->specificType])
+       : MaintenanceType::whereNotNull('interval_km')->orWhereNotNull('interval_days')->get();
+
+   foreach ($types as $type) {
+       $lastOrder = MaintenanceOrder::where('vehicle_id', $this->vehicle->id)
+           ->where('maintenance_type_id', $type->id)
+           ->where('status', 'completed')
+           ->orderByDesc('end_date')
+           ->first();
+
+       // ── KM CHECK ──
+       if ($type->interval_km) {
+           $baseKm = $lastOrder?->mileage_at_service ?? 0;
+           $dueKm  = $baseKm + $type->interval_km;
+           $kmOverdue = $this->vehicle->mileage - $dueKm;
+           if ($kmOverdue >= 0) {
+               $this->createAlert('km', $type, $lastOrder, $kmOverdue);
+           }
+       }
+
+       // ── DAYS CHECK ──
+       if ($type->interval_days) {
+           $baseDate = $lastOrder?->end_date ?? $this->vehicle->created_at;
+           $daysSince = now()->diffInDays($baseDate);
+           $daysOverdue = $daysSince - $type->interval_days;
+           if ($daysOverdue >= 0) {
+               $this->createAlert('days', $type, $lastOrder, $daysOverdue);
+           }
+       }
+   }
+
+private createAlert(string $triggerType, MaintenanceType $type, ?MaintenanceOrder $lastOrder, int $overdueAmount): void
+   - Crear notificación in-app via DatabaseNotification para todos los users con rol coordinator/admin
+   - Datos de notificación: vehicle_id, type_id, trigger_type, overdue_amount, last_order_id
+
+SCHEDULER:
+En bootstrap/app.php o Kernel.php:
+$schedule->job(new CheckAllPreventive)->dailyAt('08:00');
+// CheckAllPreventive itera todos los vehículos activos y despacha CheckPreventiveMaintenance por cada uno
+
+DISPARADORES SECUNDARIOS (ya definidos en otros módulos):
+- TripService::completeTrip() → dispatch(CheckPreventiveMaintenance::class, [$vehicle])
+- MaintenanceService::closeOrder() → dispatch(CheckPreventiveMaintenance::class, [$vehicle, $maintenanceType])
+
+FILAMENT PAGE (solo lectura):
+app/Filament/Pages/PreventiveDueReport.php
+
+Lógica de query para mostrar vehículos con mantenimiento pendiente:
+Para cada vehicle + maintenance_type combinación, calcular si está overdue.
+Usar una colección procesada en PHP (no SQL directo para la comparación de intervalos).
+
+TABLA en la page:
+- Vehículo (plate + tipo)
+- Tipo de mantenimiento
+- Último servicio (fecha y km)
+- Km actual
+- Km excedidos (si aplica, badge rojo)
+- Días excedidos (si aplica, badge rojo)
+- Acción: "Crear orden" → link a nueva MaintenanceOrder con vehicle+type preseleccionados
+
+Genera código completo PHP 8.3, Laravel 11, Filament v3.`
+    }
+  ]
+},
+{
+  id:'MOD-REPORT', label:'Reports & Dashboards', color:'#A32D2D',
+  tag:'reports',
+  prompts:[
+    {
+      sub:'Prompt maestro del módulo completo',
+      text:`Desarrolla el módulo MOD-REPORT completo en Laravel 11 con Filament PHP v3 para el sistema MVMS.
+
+TODAS LAS PAGES SON READ-ONLY. Sin escritura en este módulo.
+
+PAGES A CREAR:
+
+A) app/Filament/Pages/CostByVehicleReport.php
+   FILTROS (header form):
+   - DatePicker(from, default: inicio del mes), DatePicker(to, default: hoy)
+   - Select(vehicle_id, nullable, "Todos los vehículos")
+   - Select(maintenance_type_id, nullable, "Todos los tipos")
+
+   TABLA (query):
+   SELECT v.plate, vbm.brand, vbm.model,
+          COUNT(mo.id) as orders_count,
+          SUM(mo.total_cost) as total_cost,
+          AVG(mo.total_cost) as avg_cost,
+          MAX(mo.total_cost) as max_cost
+   FROM maintenance_orders mo
+   JOIN vehicles v ON v.id = mo.vehicle_id
+   JOIN vehicle_brands_models vbm ON vbm.id = v.brand_model_id
+   WHERE mo.status = 'completed'
+     AND mo.end_date BETWEEN $from AND $to
+     AND ($vehicleId IS NULL OR mo.vehicle_id = $vehicleId)
+     AND ($typeId IS NULL OR mo.maintenance_type_id = $typeId)
+   GROUP BY v.id
+   ORDER BY total_cost DESC
+
+   COLUMNAS: Placa, Marca/Modelo, Órdenes, Costo total (money), Costo promedio (money), Costo máximo (money)
+   FOOTER ROW: Totales sumados
+   ACCIÓN: Exportar CSV (usa Filament Export o implementa descarga manual)
+
+B) app/Filament/Pages/MechanicWorkloadReport.php
+   FILTROS: DateRange (from/to), Select(mechanic_id nullable)
+   QUERY:
+   SELECT m.first_name, m.last_name, s.name as specialty,
+          COUNT(mo.id) as orders_completed,
+          SUM(TIMESTAMPDIFF(HOUR, mo.start_date, mo.end_date)) as total_hours,
+          AVG(TIMESTAMPDIFF(HOUR, mo.start_date, mo.end_date)) as avg_hours,
+          SUM(mo.total_cost) as total_cost_managed
+   FROM maintenance_orders mo
+   JOIN mechanics m ON m.id = mo.mechanic_id
+   JOIN specialties s ON s.id = m.specialty_id
+   WHERE mo.status = 'completed' AND mo.end_date BETWEEN $from AND $to
+   GROUP BY m.id ORDER BY orders_completed DESC
+
+   COLUMNAS: Mecánico, Especialidad, Órdenes, Horas totales, Horas promedio, Costo gestionado
+
+C) app/Filament/Pages/PartsConsumptionReport.php
+   FILTROS: DateRange, Select(spare_part_id nullable)
+   QUERY:
+   SELECT sp.code, sp.name, sp.unit,
+          SUM(mop.quantity) as total_qty,
+          SUM(mop.subtotal) as total_cost,
+          AVG(mop.unit_price) as avg_price,
+          COUNT(DISTINCT mop.maintenance_order_id) as orders_count
+   FROM maintenance_order_parts mop
+   JOIN spare_parts sp ON sp.id = mop.spare_part_id
+   JOIN maintenance_orders mo ON mo.id = mop.maintenance_order_id
+   WHERE mo.status = 'completed' AND mo.end_date BETWEEN $from AND $to
+   GROUP BY sp.id ORDER BY total_cost DESC
+
+   COLUMNAS: Código, Nombre, Unidad, Cantidad total, Costo total, Precio promedio, Órdenes
+
+D) app/Filament/Pages/TripSummaryReport.php
+   FILTROS: DateRange, Select(mine_id nullable), Select(vehicle_id nullable)
+   QUERY: trips con joins a vehicles, mines, trip_drivers, drivers
+   COLUMNAS: Vehículo, Mina, Fecha salida, Fecha retorno, Km recorridos, Choferes (names), Estado
+
+E) OverviewStatsWidget (app/Filament/Widgets/OverviewStatsWidget.php)
+   Extiende StatsOverviewWidget, aparece en el Dashboard principal.
+   STATS (cada una con descripción y tendencia si es posible):
+   1. Vehículos disponibles (count WHERE status=available) — color: success
+   2. Viajes activos (count WHERE status=in_progress) — color: warning
+   3. Órdenes abiertas (count WHERE status IN [pending, in_progress]) — color: danger
+   4. Licencias por vencer en 30 días (count WHERE status=active AND expiry_date < now()+30) — color: warning
+   5. Repuestos con stock bajo (count WHERE stock <= threshold) — color: danger
+
+   Cada stat tiene ->url() que lleva al Resource o Page correspondiente.
+   Polling cada 60 segundos.
+
+CONFIGURACIÓN DEL PANEL (app/Providers/Filament/AdminPanelProvider.php):
+->widgets([
+    OverviewStatsWidget::class,
+    FleetStatusWidget::class,
+    ActiveTripsWidget::class,
+    OpenOrdersWidget::class,
+    LowStockWidget::class,
+])
+->pages([
+    ExpiringLicensesPage::class,
+    CostByVehicleReport::class,
+    MechanicWorkloadReport::class,
+    PartsConsumptionReport::class,
+    TripSummaryReport::class,
+    PreventiveDueReport::class,
+    ActivityLogPage::class,
+    SettingsPage::class,
+])
+->navigationGroups([
+    NavigationGroup::make('Operaciones')->icon('heroicon-o-truck'),
+    NavigationGroup::make('Mantenimiento')->icon('heroicon-o-wrench-screwdriver'),
+    NavigationGroup::make('Reportes')->icon('heroicon-o-chart-bar'),
+    NavigationGroup::make('Administración')->icon('heroicon-o-cog-6-tooth'),
+])
+
+Genera código completo PHP 8.3, Laravel 11, Filament v3.`
+    }
+  ]
+},
+{
+  id:'MOD-AUTH', label:'Authentication & Authorization', color:'#3C3489',
+  tag:'admin',
+  prompts:[
+    {
+      sub:'Prompt maestro del módulo completo',
+      text:`Desarrolla el módulo MOD-AUTH completo en Laravel 11 con Filament PHP v3 y Spatie Laravel Permission para el sistema MVMS.
+
+PAQUETES REQUERIDOS:
+composer require spatie/laravel-permission
+composer require spatie/laravel-activitylog
+php artisan vendor:publish --provider="Spatie\\Permission\\PermissionServiceProvider"
+php artisan vendor:publish --provider="Spatie\\ActivityLog\\ActivitylogServiceProvider"
+
+ROLES DEL SISTEMA:
+- admin: acceso total a todos los módulos y configuración
+- coordinator: gestión de viajes, choferes, vehículos, órdenes. No puede modificar catálogos.
+- mechanic_supervisor: gestión de órdenes y repuestos. No puede crear/cancelar viajes.
+- viewer: solo lectura en todos los módulos
+
+MODELO USER:
+1. app/Models/User.php
+   - Añadir trait: use HasRoles (de Spatie)
+   - Añadir trait: use LogsActivity (de Spatie)
+   - helpers: isAdmin():bool, isCoordinator():bool, etc.
+   - El modelo ya usa HasFactory, Authenticatable, Notifiable
+
+SEEDER DE ROLES Y PERMISOS:
+2. database/seeders/RolesAndPermissionsSeeder.php
+   Permisos por módulo (ejemplos):
+   - drivers.view, drivers.create, drivers.edit, drivers.delete
+   - licenses.view, licenses.create, licenses.edit
+   - vehicles.view, vehicles.create, vehicles.edit, vehicles.decommission
+   - trips.view, trips.create, trips.start, trips.complete, trips.cancel
+   - maintenance_orders.view, maintenance_orders.create, maintenance_orders.close
+   - spare_parts.view, spare_parts.create, spare_parts.edit, spare_parts.adjust_stock
+   - mechanics.view, mechanics.create, mechanics.edit
+   - reports.view
+   - settings.manage
+   - users.manage
+
+   Asignación de permisos por rol:
+   - admin: todos los permisos
+   - coordinator: view/create/edit en drivers,licenses,vehicles,trips,maintenance_orders,mechanics + reports.view
+   - mechanic_supervisor: view en vehicles,drivers + create/edit/close en maintenance_orders + adjust_stock en spare_parts
+   - viewer: solo *.view en todos
+
+FILAMENT RESOURCES:
+A) UserResource (app/Filament/Resources/UserResource.php)
+   Visible solo para admin (canAccess: auth()->user()->hasRole('admin'))
+   TABLA:
+   - Nombre, Email, Roles (badges), Fecha creación, Último acceso, Estado (active/inactive)
+   - Acción: Resetear password, Cambiar rol
+
+   FORMULARIO:
+   - TextInput(name required), TextInput(email required unique)
+   - TextInput(password, nullable en edit, hashedPassword)
+   - CheckboxList(roles, options from Role::pluck('name','name'), required min 1)
+   - Toggle(is_active, default true)
+
+B) RoleResource (app/Filament/Resources/RoleResource.php)
+   Solo admin
+   TABLA: name, guard_name, count permisos, count usuarios
+   FORMULARIO:
+   - TextInput(name required unique)
+   - CheckboxList(permissions, agrupadas por módulo, options from Permission)
+
+C) app/Filament/Pages/ActivityLogPage.php
+   Solo admin y coordinator
+   TABLA (Activity model de Spatie):
+   - Fecha (created_at)
+   - Usuario (causer.name)
+   - Acción (description: created, updated, deleted)
+   - Modelo (subject_type humanizado + subject_id)
+   - Cambios (properties.attributes diff resumido en 2 líneas)
+   - FILTROS: DateRange, Select(causer_id), Select(subject_type)
+
+D) app/Filament/Pages/SettingsPage.php
+   Solo admin
+   Usa spatie/laravel-settings o un modelo Setting key-value simple
+   CAMPOS:
+   - TextInput(low_stock_threshold, numeric min:1, default:5)
+   - Grid 3: TextInput(license_alert_days_1, numeric, default:30), TextInput(license_alert_days_2, default:15), TextInput(license_alert_days_3, default:5)
+   - TextInput(preventive_alert_offset_km, numeric, default:500, hint:"Alertar N km antes del umbral")
+   - TextInput(admin_email, email)
+   - Toggle(send_email_alerts, default:true)
+   - Botón "Guardar configuración"
+
+MIDDLEWARE Y POLÍTICAS:
+E) Políticas (una por modelo principal):
+   app/Policies/TripPolicy.php:
+   - create(): hasAnyRole(['admin','coordinator'])
+   - start(): hasAnyRole(['admin','coordinator'])
+   - complete(): hasAnyRole(['admin','coordinator'])
+   - cancel(): hasAnyRole(['admin','coordinator'])
+
+   app/Policies/MaintenanceOrderPolicy.php:
+   - create(): hasAnyRole(['admin','coordinator','mechanic_supervisor'])
+   - addPart(): hasAnyRole(['admin','coordinator','mechanic_supervisor']) && order.isOpen()
+   - close(): hasAnyRole(['admin','coordinator','mechanic_supervisor'])
+
+   app/Policies/VehiclePolicy.php:
+   - decommission(): hasRole('admin')
+
+F) Filament Auth: Configurar en AdminPanelProvider:
+   ->authMiddleware([Authenticate::class])
+   ->login()
+   ->registration(false)
+   Usar Filament Shield o implementar manualmente el control de acceso por rol en cada Resource con canAccess() y canCreate() / canEdit() / canDelete() overrides.
+
+ACTIVIDAD LOG EN MODELOS:
+Añadir LogsActivity a: Driver, License, Vehicle, Trip, MaintenanceOrder, SparePart
+Con: protected static $logAttributes = ['*'] y protected static $logOnlyDirty = true
+
+Genera código completo PHP 8.3, Laravel 11, Filament v3, Spatie Permission, Spatie Activitylog.`
+    }
+  ]
+},
+{
+  id:'MOD-SETUP', label:'Instalación y configuración base', color:'#444441',
+  tag:'admin',
+  prompts:[
+    {
+      sub:'Prompt de configuración inicial del proyecto',
+      text:`Configura el proyecto base del sistema MVMS (Mining Vehicle Maintenance System) en Laravel 11 con Filament PHP v3 desde cero.
+
+STACK TECNOLÓGICO:
+- Laravel 11.x
+- PHP 8.3+
+- MySQL 8.0+ (utf8mb4, InnoDB)
+- Filament PHP v3
+- Redis 7.x (queues y cache)
+- Spatie Laravel Permission v6
+- Spatie Laravel Activitylog v4
+
+PASO 1 — INSTALACIÓN:
+composer create-project laravel/laravel mvms
+cd mvms
+composer require filament/filament:"^3.0"
+php artisan filament:install --panels
+composer require spatie/laravel-permission
+composer require spatie/laravel-activitylog
+
+PASO 2 — CONFIGURACIÓN .env:
+APP_NAME="MVMS - Mining Vehicle Maintenance"
+APP_ENV=production
+APP_DEBUG=false
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=mvms_db
+DB_USERNAME=mvms_user
+DB_PASSWORD=secret
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+CACHE_DRIVER=redis
+SESSION_DRIVER=redis
+QUEUE_CONNECTION=redis
+LOW_STOCK_THRESHOLD=5
+ADMIN_EMAIL=admin@company.com
+
+PASO 3 — MIGRACIONES (en orden con timestamps):
+Crear las 14 migraciones en este orden exacto para respetar FKs:
+1. create_license_categories_table
+2. create_specialties_table
+3. create_mines_table
+4. create_vehicle_brands_models_table
+5. create_drivers_table
+6. create_licenses_table (FK: driver_id, category_id)
+7. create_vehicles_table (FK: brand_model_id)
+8. create_trips_table (FK: vehicle_id, mine_id)
+9. create_trip_drivers_table (FK: trip_id, driver_id) + UNIQUE(trip_id, leg, position)
+10. create_mechanics_table (FK: specialty_id)
+11. create_maintenance_types_table
+12. create_maintenance_orders_table (FK: vehicle_id, trip_id, mechanic_id, maintenance_type_id)
+13. create_spare_parts_table
+14. create_maintenance_order_parts_table (FK: maintenance_order_id, spare_part_id)
+
+Generar el Schema::create completo para cada migración con todos los campos, tipos, nullability, defaults e índices.
+
+PASO 4 — SEEDERS:
+database/seeders/DatabaseSeeder.php que llama en orden:
+1. RolesAndPermissionsSeeder (roles: admin, coordinator, mechanic_supervisor, viewer)
+2. LicenseCategorySeeder (A-I, A-IIa, A-IIb, B-I, B-IIa, B-IIb, B-IIc, C con vehicle_types)
+3. SpecialtySeeder (Motor, Transmisión, Eléctrico, Hidráulica, Frenos, Neumáticos, General)
+4. MaintenanceTypeSeeder (Cambio aceite 5000km/90días, Rotación neumáticos 10000km, Inspección frenos 20000km, Filtro aire 15000km/180días, Inspección general 365días)
+5. AdminUserSeeder (crea un usuario admin con email y password de .env)
+
+PASO 5 — FILAMENT PANEL PROVIDER:
+app/Providers/Filament/AdminPanelProvider.php completo con:
+- ->path('admin')
+- ->colors(['primary' => Color::Blue])
+- ->login()
+- ->navigation con grupos: Operaciones, Mantenimiento, Reportes, Administración
+- Todos los Resources registrados con su navigationGroup y navigationIcon (heroicons)
+- Todos los Widgets registrados
+- ->authMiddleware([Authenticate::class])
+- ->brandName('MVMS')
+- ->favicon(asset('favicon.png'))
+- ->renderHook('panels::head.end', fn()=>...) para meta tags
+
+PASO 6 — CONFIGURACIÓN DE COLAS (Supervisor):
+Generar el archivo /etc/supervisor/conf.d/mvms-worker.conf:
+- numprocs=2
+- command=php /var/www/mvms/artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+- autostart=true, autorestart=true
+
+PASO 7 — SCHEDULER (crontab):
+* * * * * cd /var/www/mvms && php artisan schedule:run >> /dev/null 2>&1
+
+PASO 8 — config/mvms.php:
+return [
+    'low_stock_threshold' => env('LOW_STOCK_THRESHOLD', 5),
+    'admin_email' => env('ADMIN_EMAIL', 'admin@company.com'),
+    'license_alert_days' => [30, 15, 5],
+    'preventive_alert_offset_km' => 500,
+    'send_email_alerts' => env('SEND_EMAIL_ALERTS', true),
+    'max_concurrent_orders_per_mechanic' => 1,
+];
+
+Genera todos los archivos completos con código PHP 8.3 listo para producción.`
+    }
+  ]
+}
+];
+
+const ALL_TAGS = ['all','ops','maint','reports','admin'];
+const TAG_LABELS = {all:'Todos',ops:'Operaciones',maint:'Mantenimiento',reports:'Reportes / Preventivo',admin:'Admin / Setup'};
+let activeTag = 'all';
+let openMods = {};
+
+function renderTabs(){
+  document.getElementById('tabs').innerHTML = ALL_TAGS.map(t=>
+    `<button class="tab${activeTag===t?' on':''}" onclick="setTag('${t}',this)">${TAG_LABELS[t]}</button>`
+  ).join('');
+}
+
+function setTag(tag, btn){
+  activeTag = tag;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderGrid();
+}
+
+function renderGrid(){
+  const mods = activeTag==='all' ? MODS : MODS.filter(m=>m.tag===activeTag);
+  document.getElementById('grid').innerHTML = mods.map(m=>{
+    const isOpen = openMods[m.id];
+    return `<div class="mod-card">
+      <div class="mod-hdr" onclick="toggleMod('${m.id}')">
+        <div class="mod-dot" style="background:${m.color}"></div>
+        <span class="mod-name">${m.label}</span>
+        <span class="mod-id">${m.id}</span>
+        <span class="chevron${isOpen?' open':''}">▶</span>
+      </div>
+      <div class="mod-body${isOpen?' open':''}">
+        ${m.prompts.map((p,pi)=>`
+          <div class="prompt-label">${p.sub}</div>
+          <div class="copy-btn" onclick="copyPrompt('${m.id}_${pi}',this)">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            Copiar prompt
+          </div>
+          <button class="send-btn" onclick="sendToChat('${m.id}_${pi}')">Enviar al chat ↗</button>
+          <div class="prompt-box" id="pb_${m.id}_${pi}">${escHtml(p.text)}</div>
+        `).join('<div class="section-sep"></div>')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function toggleMod(id){
+  openMods[id] = !openMods[id];
+  renderGrid();
+}
+
+function copyPrompt(key, btn){
+  const [modId, pi] = key.split('_');
+  const mod = MODS.find(m=>m.id===modId);
+  const text = mod.prompts[parseInt(pi)].text;
+  navigator.clipboard.writeText(text).then(()=>{
+    btn.classList.add('copied');
+    btn.textContent = 'Copiado!';
+    setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copiar prompt';},2200);
+  });
+}
+
+function sendToChat(key){
+  const [modId, pi] = key.split('_');
+  const mod = MODS.find(m=>m.id===modId);
+  sendPrompt(mod.prompts[parseInt(pi)].text);
+}
+
+renderTabs();
+renderGrid();
+</script>

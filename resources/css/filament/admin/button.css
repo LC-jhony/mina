@@ -1,0 +1,17 @@
+.fi-btn {
+    @apply rounded-lg;
+}
+
+.fi-btn[class*="fi-color-"]:is([class*="fi-bg-color-"]) {
+    background-color: var(--color-600) !important;
+    color: white !important;
+}
+
+.fi-btn[class*="fi-color-"]:hover:is([class*="fi-bg-color-"]) {
+    background-color: var(--color-900) !important;
+    color: white !important;
+}
+
+.fi-btn[class*="fi-color-"]:is([class*="fi-bg-color-"]) svg {
+    color: inherit !important;
+}
